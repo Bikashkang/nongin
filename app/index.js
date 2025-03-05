@@ -2,15 +2,25 @@ import { View, Text, FlatList, TouchableOpacity } from 'react-native';
 import { Link } from 'expo-router';
 import { useCart } from '../context/CartContext';
 import { Ionicons } from '@expo/vector-icons';
-
-const initialProducts = [
-  { id: '1', name: 'Apples', price: 2.99 },
-  { id: '2', name: 'Milk', price: 3.49 },
-  { id: '3', name: 'Bread', price: 1.99 },
-];
+import { useState, useEffect } from 'react';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../firebase';
 
 export default function HomeScreen() {
   const { cart, addToCart } = useCart();
+  const [products, setProducts] = useState([]);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      const querySnapshot = await getDocs(collection(db, 'products'));
+      const productsList = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setProducts(productsList);
+    };
+    fetchProducts();
+  }, []);
 
   const renderItem = ({ item }) => {
     const cartItem = cart.find((cartItem) => cartItem.id === item.id);
@@ -41,7 +51,7 @@ export default function HomeScreen() {
         <Text className="text-3xl font-bold text-white">Grocery Store</Text>
       </View>
       <FlatList
-        data={initialProducts}
+        data={products}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         contentContainerStyle={{ padding: 16 }}

@@ -1,28 +1,33 @@
 import { View, Text, FlatList, TouchableOpacity } from 'react-native';
-import { Link, Redirect } from 'expo-router';
-import { useCart } from '../context/CartContext';
-import { useAuth } from '../context/AuthContext';
+import { Redirect, useLocalSearchParams } from 'expo-router';
+import { useCart } from '../../context/CartContext'; // Adjusted path: ../../ to go up two levels
+import { useAuth } from '../../context/AuthContext'; // Same adjustment
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../firebase';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+import { db } from '../../firebase'; // Adjusted path
 import { LinearGradient } from 'expo-linear-gradient';
 
 interface Product {
   id: string;
   name: string;
   price: number;
+  categoryId: string;
 }
 
-export default function HomeScreen() {
+export default function CategoryScreen() {
+  const { id } = useLocalSearchParams();
   const { cart, addToCart } = useCart();
   const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
 
   useEffect(() => {
+    if (!user || !id) return;
+
     const fetchProducts = async () => {
       try {
-        const querySnapshot = await getDocs(collection(db, 'products'));
+        const q = query(collection(db, 'products'), where('categoryId', '==', id));
+        const querySnapshot = await getDocs(q);
         const productsList = querySnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
@@ -32,8 +37,9 @@ export default function HomeScreen() {
         console.error('Error fetching products:', error);
       }
     };
+
     fetchProducts();
-  }, [user]);
+  }, [user, id]);
 
   if (!user) {
     return <Redirect href="/login" />;
@@ -65,33 +71,23 @@ export default function HomeScreen() {
     );
   };
 
-  const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-
   return (
     <View className="flex-1 bg-gray-50">
       <LinearGradient colors={['#2563eb', '#1e40af']} className="p-6 pb-4 shadow-lg">
-        <Text className="text-3xl font-extrabold text-white">Grocery Store</Text>
+        <Text className="text-3xl font-extrabold text-white">Category Products</Text>
       </LinearGradient>
-      <FlatList
-        data={products}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={{ padding: 16 }}
-      />
-      <Link href="/cart" asChild>
-        <TouchableOpacity
-          className="bg-blue-600 m-4 p-4 rounded-xl flex-row justify-center items-center shadow-lg"
-          activeOpacity={0.9}
-        >
-          <Ionicons name="cart-outline" size={24} color="white" />
-          <Text className="text-white text-lg font-semibold ml-2">Go to Cart</Text>
-          {cartItemCount > 0 && (
-            <View className="absolute -top-2 -right-2 bg-red-500 rounded-full w-6 h-6 flex items-center justify-center">
-              <Text className="text-white text-xs font-bold">{cartItemCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </Link>
+      {products.length === 0 ? (
+        <View className="flex-1 justify-center items-center">
+          <Text className="text-lg text-gray-600 font-medium">No products in this category.</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={products}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={{ padding: 16 }}
+        />
+      )}
     </View>
   );
 }

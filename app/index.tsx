@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
-import { AuthProvider } from './context/AuthContext';
+
 interface Product {
   id: string;
   name: string;
@@ -17,8 +17,6 @@ export default function HomeScreen() {
   const { cart, addToCart } = useCart();
   const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
-
-  console.log('HomeScreen rendering, user:', user ? user.uid : 'null');
 
   useEffect(() => {
     console.log('HomeScreen useEffect, user:', user ? user.uid : 'null');

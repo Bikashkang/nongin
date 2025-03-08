@@ -9,7 +9,7 @@ export default function Layout() {
       <CartProvider>
         <Stack
           screenOptions={{ headerShown: false }}
-          initialRouteName="login"
+          //initialRouteName="login"
         >
           <Stack.Screen name="index" options={{ title: 'Grocery Store', headerShown: true }} />
           <Stack.Screen name="cart" options={{ title: 'Your Cart', headerShown: true }} />

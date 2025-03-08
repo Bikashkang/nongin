@@ -1,21 +1,35 @@
-import { View, Text, FlatList, TouchableOpacity, Alert } from 'react-native';
-import { Redirect } from 'expo-router';
+import { View, Text, FlatList, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { Redirect, Link } from 'expo-router'; // Add Link import
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
+import { useState } from 'react';
 
 export default function CartScreen() {
   const { cart, addToCart, removeFromCart, clearCart, placeOrder } = useCart();
   const { user, logout } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
 
   if (!user) {
     return <Redirect href="/login" />;
   }
 
   const handlePlaceOrder = async () => {
-    const orderId = await placeOrder();
-    if (orderId) {
-      Alert.alert('Order Placed', `Your order (ID: ${orderId}) has been successfully placed!`);
+    if (!user || cart.length === 0) {
+      Alert.alert('Error', 'Cart is empty or user not authenticated.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const orderId = await placeOrder();
+      if (orderId) {
+        Alert.alert('Order Placed', `Your order (ID: ${orderId}) has been successfully placed!`);
+      }
+    } catch (error: any) {
+      console.error('Error placing order:', error);
+      Alert.alert('Error', `Failed to place order: ${error.message}`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -71,20 +85,38 @@ export default function CartScreen() {
             <TouchableOpacity
               className="bg-green-500 mt-4 p-4 rounded-lg flex-row justify-center items-center"
               onPress={handlePlaceOrder}
+              disabled={isLoading}
             >
-              <Ionicons name="checkmark-circle-outline" size={24} color="white" />
-              <Text className="text-white text-lg font-semibold ml-2">Place Order</Text>
+              {isLoading ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle-outline" size={24} color="white" />
+                  <Text className="text-white text-lg font-semibold ml-2">Place Order</Text>
+                </>
+              )}
             </TouchableOpacity>
             <TouchableOpacity
               className="bg-red-500 mt-4 p-4 rounded-lg flex-row justify-center items-center"
               onPress={clearCart}
+              disabled={isLoading}
             >
               <Ionicons name="trash-outline" size={24} color="white" />
               <Text className="text-white text-lg font-semibold ml-2">Clear Cart</Text>
             </TouchableOpacity>
+            <Link href="/orders" asChild>
+              <TouchableOpacity
+                className="bg-blue-500 mt-4 p-4 rounded-lg flex-row justify-center items-center"
+                disabled={isLoading}
+              >
+                <Ionicons name="list-outline" size={24} color="white" />
+                <Text className="text-white text-lg font-semibold ml-2">Order History</Text>
+              </TouchableOpacity>
+            </Link>
             <TouchableOpacity
               className="bg-gray-500 mt-4 p-4 rounded-lg flex-row justify-center items-center"
               onPress={logout}
+              disabled={isLoading}
             >
               <Ionicons name="log-out-outline" size={24} color="white" />
               <Text className="text-white text-lg font-semibold ml-2">Logout</Text>

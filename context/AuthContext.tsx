@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { auth } from '../firebase';
 import { User, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from 'firebase/auth';
 import { View, Text } from 'react-native';
-
+import { router } from 'expo-router';
 interface AuthContextValue {
   user: User | null;
   login: (email: string, password: string) => Promise<void>;
@@ -33,19 +33,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('Attempting login with:', email);
     await signInWithEmailAndPassword(auth, email, password);
     console.log('Login successful');
+    router.replace('/'); // This navigates to index without adding to history stack
   };
 
   const logout = async () => {
     await signOut(auth);
     console.log('Logged out');
+    router.replace('/login');
   };
 
   const signup = async (email: string, password: string) => {
     console.log('Attempting signup with:', email);
     await createUserWithEmailAndPassword(auth, email, password);
     console.log('Signup successful');
+    router.replace('/');
   };
-
   const value: AuthContextValue = { user, login, logout, signup };
 
   return (

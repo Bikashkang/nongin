@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { collection, doc, setDoc, onSnapshot, DocumentSnapshot, addDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, onSnapshot, addDoc, DocumentSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from './AuthContext';
 
@@ -14,8 +14,8 @@ interface CartContextValue {
   cart: CartItem[];
   addToCart: (item: CartItem) => void;
   removeFromCart: (itemId: string) => void;
-  clearCart: () => void;
-  placeOrder: () => Promise<string>; // Returns order ID
+  clearCart: () => Promise<void>;
+  placeOrder: () => Promise<string | void>; // Returns order ID or void if failed
 }
 
 const CartContext = createContext<CartContextValue | undefined>(undefined);
@@ -24,6 +24,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const { user } = useAuth();
 
+  // Sync cart with Firestore when user changes
   useEffect(() => {
     if (!user) {
       setCart([]);
@@ -85,7 +86,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const placeOrder = async () => {
-    if (!user || cart.length === 0) return '';
+    if (!user || cart.length === 0) return;
     const orderData = {
       userId: user.uid,
       items: cart,

@@ -1,21 +1,19 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
   User,
-  signInWithPhoneNumber,
-  PhoneAuthProvider,
-  signInWithCredential,
-  ApplicationVerifier,
 } from 'firebase/auth';
 import { auth } from '../firebase';
 
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string) => Promise<void>;
   signOutUser: () => Promise<void>;
-  signInWithPhone: (phoneNumber: string, verifier: ApplicationVerifier) => Promise<string>;
-  verifyOtp: (verificationId: string, otp: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -32,27 +30,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, []);
 
-  const signOutUser = async () => {
-    await signOut(auth);
-    setUser(null);
-  };
-
-  const signInWithPhone = async (phoneNumber: string, verifier: ApplicationVerifier) => {
+  const signIn = async (email: string, password: string) => {
     try {
-      const confirmation = await signInWithPhoneNumber(auth, phoneNumber, verifier);
-      return confirmation.verificationId;
+      await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
-      console.error('Error sending OTP:', error);
+      console.error('Error signing in:', error);
       throw error;
     }
   };
 
-  const verifyOtp = async (verificationId: string, otp: string) => {
+  const signUp = async (email: string, password: string) => {
     try {
-      const credential = PhoneAuthProvider.credential(verificationId, otp);
-      await signInWithCredential(auth, credential);
+      await createUserWithEmailAndPassword(auth, email, password);
     } catch (error) {
-      console.error('Error verifying OTP:', error);
+      console.error('Error signing up:', error);
+      throw error;
+    }
+  };
+
+  const signOutUser = async () => {
+    try {
+      await signOut(auth);
+      setUser(null);
+    } catch (error) {
+      console.error('Error signing out:', error);
       throw error;
     }
   };
@@ -60,9 +61,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: AuthContextValue = {
     user,
     loading,
+    signIn,
+    signUp,
     signOutUser,
-    signInWithPhone,
-    verifyOtp,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

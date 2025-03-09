@@ -1,11 +1,11 @@
 import { View, Text, FlatList, TouchableOpacity } from 'react-native';
 import { Redirect, Link } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import Header from '../../components/Header';
 
 interface Category {
   id: string;
@@ -15,6 +15,7 @@ interface Category {
 export default function CategoriesScreen() {
   const { user } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
+  const [filteredCategories, setFilteredCategories] = useState<Category[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -27,6 +28,7 @@ export default function CategoriesScreen() {
           ...doc.data(),
         })) as Category[];
         setCategories(categoriesList);
+        setFilteredCategories(categoriesList);
       } catch (error) {
         console.error('Error fetching categories:', error);
       }
@@ -34,6 +36,13 @@ export default function CategoriesScreen() {
 
     fetchCategories();
   }, [user]);
+
+  const handleSearch = useCallback((query: string) => {
+    const filtered = categories.filter((category) =>
+      category.name.toLowerCase().includes(query.toLowerCase())
+    );
+    setFilteredCategories(filtered);
+  }, [categories]);
 
   if (!user) {
     return <Redirect href="/login" />;
@@ -53,19 +62,19 @@ export default function CategoriesScreen() {
 
   return (
     <View className="flex-1 bg-gray-50">
-      <LinearGradient colors={['#2563eb', '#1e40af']} className="p-6 pb-4 shadow-lg">
-        <Text className="text-3xl font-extrabold text-white">Categories</Text>
-      </LinearGradient>
-      {categories.length === 0 ? (
+      <Header title="Categories" onSearch={handleSearch} />
+      {filteredCategories.length === 0 ? (
         <View className="flex-1 justify-center items-center">
-          <Text className="text-lg text-gray-600 font-medium">No categories available.</Text>
+          <Text className="text-lg text-gray-600 font-medium">
+            No categories available.
+          </Text>
         </View>
       ) : (
         <FlatList
-          data={categories}
+          data={filteredCategories}
           keyExtractor={(item) => item.id}
           renderItem={renderCategory}
-          numColumns={2} // 2-column grid
+          numColumns={2}
           contentContainerStyle={{ padding: 16 }}
         />
       )}

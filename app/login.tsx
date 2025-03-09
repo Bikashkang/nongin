@@ -1,74 +1,141 @@
-import { View, Text, TextInput, TouchableOpacity } from 'react-native';
-import { useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { useAuth } from '../context/AuthContext';
-import { Ionicons } from '@expo/vector-icons';
+import { useState } from 'react';
+import { Redirect } from 'expo-router';
+import { RecaptchaVerifier, ApplicationVerifier } from 'firebase/auth';
+import { auth } from '../firebase';
 
 export default function LoginScreen() {
-  // State variables for email, password, and error messages
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  
-  // Access authentication functions from AuthContext
-  const { login, signup } = useAuth();
+  const { user, signInWithPhone, verifyOtp } = useAuth();
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [otp, setOtp] = useState('');
+  const [verificationId, setVerificationId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [recaptchaVerifier, setRecaptchaVerifier] = useState<ApplicationVerifier | null>(null);
 
-  // Handle login button press
-  const handleLogin = async () => {
+  if (user) {
+    return <Redirect href="/(tabs)" />;
+  }
+
+  const initializeRecaptcha = () => {
+    if (!recaptchaVerifier) {
+      try {
+        const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+          size: 'invisible',
+          callback: () => {
+            console.log('reCAPTCHA solved');
+          },
+          'expired-callback': () => {
+            console.log('reCAPTCHA expired');
+            Alert.alert('Error', 'reCAPTCHA expired. Please try again.');
+            setRecaptchaVerifier(null); // Reset to force re-initialization
+          },
+        });
+        setRecaptchaVerifier(verifier);
+        return verifier;
+      } catch (error) {
+        console.error('Error initializing reCAPTCHA:', error);
+        Alert.alert('Error', 'Failed to initialize reCAPTCHA.');
+        throw error;
+      }
+    }
+    return recaptchaVerifier;
+  };
+
+  const handleSendOtp = async () => {
+    if (!phoneNumber || phoneNumber.length < 10) {
+      Alert.alert('Invalid Phone Number', 'Please enter a valid 10-digit phone number.');
+      return;
+    }
+
+    setLoading(true);
     try {
-      await login(email, password);
-    } catch (err: any) {
-      setError(err.message);
+      const verifier = initializeRecaptcha();
+      const fullPhoneNumber = `+91${phoneNumber}`; // India country code
+      const id = await signInWithPhone(fullPhoneNumber, verifier);
+      setVerificationId(id);
+      Alert.alert('OTP Sent', 'Please check your phone for the OTP.');
+    } catch (error: any) {
+      console.error('Error sending OTP:', error);
+      Alert.alert('Error', error.message || 'Failed to send OTP.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Handle signup button press
-  const handleSignup = async () => {
+  const handleVerifyOtp = async () => {
+    if (!verificationId || !otp || otp.length !== 6) {
+      Alert.alert('Invalid OTP', 'Please enter a valid 6-digit OTP.');
+      return;
+    }
+
+    setLoading(true);
     try {
-      await signup(email, password);
-    } catch (err: any) {
-      setError(err.message);
+      await verifyOtp(verificationId, otp);
+    } catch (error: any) {
+      console.error('Error verifying OTP:', error);
+      Alert.alert('Error', error.message || 'Invalid OTP.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // JSX for the login screen UI
   return (
-    <View className="flex-1 bg-gray-100 justify-center p-6">
-      <Text className="text-3xl font-bold text-center mb-6">Welcome</Text>
-      
-      <TextInput
-        className="bg-white p-4 rounded-lg mb-4"
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
-      
-      <TextInput
-        className="bg-white p-4 rounded-lg mb-4"
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
-      
-      {error ? <Text className="text-red-500 mb-4">{error}</Text> : null}
-      
-      <TouchableOpacity
-        className="bg-blue-500 p-4 rounded-lg mb-4 flex-row justify-center items-center"
-        onPress={handleLogin}
-      >
-        <Ionicons name="log-in-outline" size={24} color="white" />
-        <Text className="text-white text-lg font-semibold ml-2">Login</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity
-        className="bg-green-500 p-4 rounded-lg flex-row justify-center items-center"
-        onPress={handleSignup}
-      >
-        <Ionicons name="person-add-outline" size={24} color="white" />
-        <Text className="text-white text-lg font-semibold ml-2">Sign Up</Text>
-      </TouchableOpacity>
+    <View className="flex-1 bg-gray-50 p-6 justify-center">
+      <Text className="text-3xl font-bold text-gray-800 mb-6 text-center">
+        Login with Phone
+      </Text>
+
+      {/* Invisible reCAPTCHA container */}
+      <View id="recaptcha-container" style={{ display: 'none' }} />
+
+      {!verificationId ? (
+        <>
+          <TextInput
+            className="border border-gray-300 rounded-lg p-3 mb-4 text-gray-800"
+            placeholder="Enter phone number (e.g., 9876543210)"
+            value={phoneNumber}
+            onChangeText={setPhoneNumber}
+            keyboardType="phone-pad"
+            maxLength={10}
+          />
+          <TouchableOpacity
+            className="bg-teal-600 p-3 rounded-full"
+            onPress={handleSendOtp}
+            disabled={loading}
+          >
+            <Text className="text-white font-semibold text-center text-lg">
+              {loading ? 'Sending...' : 'Send OTP'}
+            </Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        <>
+          <TextInput
+            className="border border-gray-300 rounded-lg p-3 mb-4 text-gray-800"
+            placeholder="Enter 6-digit OTP"
+            value={otp}
+            onChangeText={setOtp}
+            keyboardType="number-pad"
+            maxLength={6}
+          />
+          <TouchableOpacity
+            className="bg-teal-600 p-3 rounded-full"
+            onPress={handleVerifyOtp}
+            disabled={loading}
+          >
+            <Text className="text-white font-semibold text-center text-lg">
+              {loading ? 'Verifying...' : 'Verify OTP'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            className="mt-4"
+            onPress={() => setVerificationId(null)}
+          >
+            <Text className="text-blue-600 text-center">Change Phone Number</Text>
+          </TouchableOpacity>
+        </>
+      )}
     </View>
   );
 }

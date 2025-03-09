@@ -1,13 +1,21 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import {
+  signOut,
+  onAuthStateChanged,
+  User,
+  signInWithPhoneNumber,
+  PhoneAuthProvider,
+  signInWithCredential,
+  ApplicationVerifier,
+} from 'firebase/auth';
 import { auth } from '../firebase';
-import { User, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from 'firebase/auth';
-import { View, Text } from 'react-native';
-import { router } from 'expo-router';
+
 interface AuthContextValue {
   user: User | null;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
-  signup: (email: string, password: string) => Promise<void>;
+  loading: boolean;
+  signOutUser: () => Promise<void>;
+  signInWithPhone: (phoneNumber: string, verifier: ApplicationVerifier) => Promise<string>;
+  verifyOtp: (verificationId: string, otp: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -17,55 +25,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log('Setting up auth listener');
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      console.log('Auth state changed:', user ? user.uid : 'null');
       setUser(user);
       setLoading(false);
     });
-    return () => {
-      console.log('Cleaning up auth listener');
-      unsubscribe();
-    };
+    return unsubscribe;
   }, []);
 
-  const login = async (email: string, password: string) => {
-    console.log('Attempting login with:', email);
-    await signInWithEmailAndPassword(auth, email, password);
-    console.log('Login successful');
-    router.replace('/'); // This navigates to index without adding to history stack
-  };
-
-  const logout = async () => {
+  const signOutUser = async () => {
     await signOut(auth);
-    console.log('Logged out');
-    router.replace('/login');
+    setUser(null);
   };
 
-  const signup = async (email: string, password: string) => {
-    console.log('Attempting signup with:', email);
-    await createUserWithEmailAndPassword(auth, email, password);
-    console.log('Signup successful');
-    router.replace('/');
+  const signInWithPhone = async (phoneNumber: string, verifier: ApplicationVerifier) => {
+    try {
+      const confirmation = await signInWithPhoneNumber(auth, phoneNumber, verifier);
+      return confirmation.verificationId;
+    } catch (error) {
+      console.error('Error sending OTP:', error);
+      throw error;
+    }
   };
-  const value: AuthContextValue = { user, login, logout, signup };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {loading ? (
-        <View className="flex-1 justify-center items-center bg-gray-100">
-          <Text className="text-lg text-gray-600">Loading...</Text>
-        </View>
-      ) : (
-        children
-      )}
-    </AuthContext.Provider>
-  );
+  const verifyOtp = async (verificationId: string, otp: string) => {
+    try {
+      const credential = PhoneAuthProvider.credential(verificationId, otp);
+      await signInWithCredential(auth, credential);
+    } catch (error) {
+      console.error('Error verifying OTP:', error);
+      throw error;
+    }
+  };
+
+  const value: AuthContextValue = {
+    user,
+    loading,
+    signOutUser,
+    signInWithPhone,
+    verifyOtp,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;

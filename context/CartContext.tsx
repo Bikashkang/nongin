@@ -15,7 +15,7 @@ interface CartContextValue {
   addToCart: (item: CartItem) => void;
   removeFromCart: (itemId: string) => void;
   clearCart: () => Promise<void>;
-  placeOrder: () => Promise<string | void>; // Returns order ID or void if failed
+  placeOrder: (deliveryAddress: string, contactNumber: string) => Promise<string | void>;
 }
 
 const CartContext = createContext<CartContextValue | undefined>(undefined);
@@ -24,7 +24,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const { user } = useAuth();
 
-  // Sync cart with Firestore when user changes
   useEffect(() => {
     if (!user) {
       setCart([]);
@@ -85,17 +84,21 @@ export function CartProvider({ children }: { children: ReactNode }) {
     await setDoc(doc(db, 'carts', user.uid), { items: [] });
   };
 
-  const placeOrder = async () => {
+  const placeOrder = async (deliveryAddress: string, contactNumber: string) => {
     if (!user || cart.length === 0) return;
+    const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const orderData = {
       userId: user.uid,
       items: cart,
-      total: cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
+      total,
+      deliveryAddress,
+      contactNumber,
       timestamp: new Date().toISOString(),
     };
     const orderRef = await addDoc(collection(db, 'orders'), orderData);
     await clearCart();
-    return orderRef.id; // Return order ID for confirmation
+    console.log(`Order placed: ₹${total.toFixed(2)} to ${deliveryAddress}`);
+    return orderRef.id;
   };
 
   const saveCartToFirestore = async (updatedCart: CartItem[]) => {

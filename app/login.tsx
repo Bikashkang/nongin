@@ -1,17 +1,29 @@
 import { View, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { useAuth } from '../context/AuthContext';
-import { useState } from 'react';
-import { Redirect } from 'expo-router';
+import { useState, useEffect } from 'react';
+import { Redirect, useRouter } from 'expo-router';
 
 export default function LoginScreen() {
-  const { user, signIn, signUp } = useAuth();
+  const { user, role, loading, signIn, signUp } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false); // Toggle between login and signup
-  const [loading, setLoading] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
+  const router = useRouter();
 
-  if (user) {
-    return <Redirect href="/(tabs)" />;
+  useEffect(() => {
+    if (!loading && user) {
+      console.log('LoginScreen - User:', user.email, 'Role:', role);
+      if (role === 'store_manager') {
+        router.replace('/store-manager');
+      } else {
+        router.replace('/(tabs)');
+      }
+    }
+  }, [user, role, loading, router]);
+
+  if (!loading && user) {
+    return null; // Redirect handles navigation
   }
 
   const handleAuth = async () => {
@@ -20,20 +32,19 @@ export default function LoginScreen() {
       return;
     }
 
-    setLoading(true);
+    setAuthLoading(true);
     try {
       if (isSignUp) {
-        await signUp(email, password);
+        await signUp(email, password, email === 'manager@gmail.com' ? 'store_manager' : 'customer');
         Alert.alert('Success', 'Account created! Please log in.');
-        setIsSignUp(false); // Switch back to login after signup
+        setIsSignUp(false);
       } else {
         await signIn(email, password);
       }
     } catch (error: any) {
-      console.error('Auth error:', error);
       Alert.alert('Error', error.message || 'Authentication failed.');
     } finally {
-      setLoading(false);
+      setAuthLoading(false);
     }
   };
 
@@ -42,7 +53,6 @@ export default function LoginScreen() {
       <Text className="text-3xl font-bold text-gray-800 mb-6 text-center">
         {isSignUp ? 'Sign Up' : 'Login'}
       </Text>
-
       <TextInput
         className="border border-gray-300 rounded-lg p-3 mb-4 text-gray-800"
         placeholder="Enter email"
@@ -61,13 +71,12 @@ export default function LoginScreen() {
       <TouchableOpacity
         className="bg-teal-600 p-3 rounded-full mb-4"
         onPress={handleAuth}
-        disabled={loading}
+        disabled={authLoading}
       >
         <Text className="text-white font-semibold text-center text-lg">
-          {loading ? 'Processing...' : isSignUp ? 'Sign Up' : 'Login'}
+          {authLoading ? 'Processing...' : isSignUp ? 'Sign Up' : 'Login'}
         </Text>
       </TouchableOpacity>
-
       <TouchableOpacity onPress={() => setIsSignUp(!isSignUp)}>
         <Text className="text-blue-600 text-center">
           {isSignUp ? 'Already have an account? Login' : 'Need an account? Sign Up'}

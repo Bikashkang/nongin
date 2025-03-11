@@ -1,9 +1,9 @@
-import { View, Text, FlatList, TouchableOpacity, TextInput, Alert, ScrollView } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity,StyleSheet, TextInput, Alert, ScrollView } from 'react-native';
 import { useCart } from '../context/CartContext';
 import { useLocation } from '../context/LocationContext';
 import { Ionicons } from '@expo/vector-icons';
-import Header from '../components/Header';
 import { useState, useEffect } from 'react';
+import { StackScreenProps } from '@react-navigation/stack';
 
 interface CartItem {
   id: string;
@@ -19,23 +19,26 @@ interface DeliveryAddress {
   city: string;
   state: string;
   postalCode: string;
+  latitude?: number;
+  longitude?: number;
 }
 
-export default function CartScreen() {
+type RootStackParamList = {
+  cart: undefined;
+  'change-address': undefined;
+  '(tabs)': undefined;
+  login: undefined;
+  'category/[id]': { id: string };
+};
+
+export default function CartScreen({ navigation }: StackScreenProps<RootStackParamList, 'cart'>) {
   const { cart, addToCart, removeFromCart, clearCart, placeOrder } = useCart();
-  const { currentAddress, retryLocation } = useLocation();
-  const [deliveryAddress, setDeliveryAddress] = useState<DeliveryAddress>({
-    name: '',
-    houseNumber: '',
-    street: '',
-    city: '',
-    state: '',
-    postalCode: '',
-  });
+  const { currentAddress, deliveryAddress, setDeliveryAddress } = useLocation();
   const [contactNumber, setContactNumber] = useState('');
   const [isEditingAddress, setIsEditingAddress] = useState(true);
 
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const fullAddress = `${deliveryAddress.name}, ${deliveryAddress.houseNumber}, ${deliveryAddress.street}, ${deliveryAddress.city}, ${deliveryAddress.state} - ${deliveryAddress.postalCode}`.trim();
 
   useEffect(() => {
     if (currentAddress && isEditingAddress) {
@@ -45,29 +48,26 @@ export default function CartScreen() {
         ...parsedAddress,
         name: prev.name || '',
         houseNumber: prev.houseNumber || '',
-        street: prev.street || '', // Fixed syntax error here
+        street: prev.street || '',
       }));
     }
-  }, [currentAddress, isEditingAddress]);
+  }, [currentAddress, isEditingAddress, setDeliveryAddress]);
 
   const parseAddress = (address: string): Partial<DeliveryAddress> => {
-    // Expected format: "city, state pin code" (e.g., "Bangalore, Karnataka 560001")
     const parts = address.split(', ').map((part) => part.trim());
     const result: Partial<DeliveryAddress> = {};
-
     if (parts.length >= 2) {
-      result.city = parts[0]; // "Bangalore"
-      const stateAndPin = parts[1].split(' '); // "Karnataka 560001" → ["Karnataka", "560001"]
+      result.city = parts[0];
+      const stateAndPin = parts[1].split(' ');
       if (stateAndPin.length >= 2) {
-        result.state = stateAndPin[0]; // "Karnataka"
-        result.postalCode = stateAndPin[1]; // "560001"
+        result.state = stateAndPin[0];
+        result.postalCode = stateAndPin[1];
       } else {
-        result.state = parts[1]; // Fallback if no space-separated pin code
+        result.state = parts[1];
       }
     } else if (parts.length === 1) {
-      result.city = parts[0]; // Single part as city
+      result.city = parts[0];
     }
-
     return result;
   };
 
@@ -86,14 +86,14 @@ export default function CartScreen() {
     try {
       const orderId = await placeOrder(fullAddress, contactNumber);
       if (orderId) {
-        Alert.alert('Order Placed', `Your order has been placed successfully! Order ID: ${orderId}`, [{ text: 'OK' }]);
+        Alert.alert('Order Placed', `Order ID: ${orderId}`, [{ text: 'OK' }]);
         setContactNumber('');
-        setDeliveryAddress({ name: '', houseNumber: '', street: '', city: '', state: '', postalCode: '' });
+        setDeliveryAddress({ name: '', houseNumber: '', street: '', city: '', state: '', postalCode: '', latitude: undefined, longitude: undefined });
         setIsEditingAddress(true);
       }
     } catch (error) {
       console.error('Error placing order:', error);
-      Alert.alert('Error', 'Failed to place order. Please try again.');
+      Alert.alert('Error', 'Failed to place order.');
     }
   };
 
@@ -139,13 +139,13 @@ export default function CartScreen() {
 
   return (
     <View className="flex-1 bg-gray-50">
-      <Header title="Checkout" />
       {cart.length === 0 ? (
         <View className="flex-1 justify-center items-center">
           <Text className="text-lg text-gray-600 font-medium">Your cart is empty.</Text>
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
+          <Text className="text-2xl font-bold text-gray-800 mx-4 my-2">Your cart</Text>
           <FlatList
             data={cart}
             keyExtractor={(item) => item.id}
@@ -154,7 +154,10 @@ export default function CartScreen() {
           />
           <View className="p-4 bg-white rounded-xl shadow-md mt-4">
             <Text className="text-lg font-bold text-gray-800 mb-2">Delivery Address</Text>
-            {isEditingAddress ? (
+            <Text className="text-base text-gray-500 mb-2">
+              {fullAddress !== ', , , ,  - ' ? fullAddress : currentAddress || 'Set delivery address'}
+            </Text>
+            {isEditingAddress && (
               <>
                 <TextInput
                   className="border border-gray-300 rounded-lg p-2 mb-2 text-gray-800"
@@ -195,10 +198,6 @@ export default function CartScreen() {
                   maxLength={6}
                 />
               </>
-            ) : (
-              <Text className="text-base text-gray-500">
-                {`${deliveryAddress.name}, ${deliveryAddress.houseNumber}, ${deliveryAddress.street}, ${deliveryAddress.city}, ${deliveryAddress.state} - ${deliveryAddress.postalCode}`}
-              </Text>
             )}
             <TouchableOpacity
               className="mt-2 flex-row items-center"
@@ -211,12 +210,6 @@ export default function CartScreen() {
               />
               <Text className="text-blue-600 ml-1">{isEditingAddress ? 'Save' : 'Edit'}</Text>
             </TouchableOpacity>
-            {!isEditingAddress && (
-              <TouchableOpacity className="mt-2 flex-row items-center" onPress={retryLocation}>
-                <Ionicons name="refresh-outline" size={20} color="#2563eb" />
-                <Text className="text-blue-600 ml-1">Retry Location</Text>
-              </TouchableOpacity>
-            )}
           </View>
           <View className="p-4 bg-white rounded-xl shadow-md mt-4">
             <Text className="text-lg font-bold text-gray-800 mb-2">Contact Number</Text>
@@ -243,3 +236,38 @@ export default function CartScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  floatingButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    backgroundColor: '#14b8a6',
+    borderRadius: 30,
+    width: 60,
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  badge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: '#ef4444',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  badgeText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+});

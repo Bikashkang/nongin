@@ -1,4 +1,4 @@
-import { View, Text, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput } from 'react-native';
 import { useLocation } from '../context/LocationContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect, useCallback } from 'react';
@@ -10,7 +10,7 @@ interface HeaderProps {
 }
 
 export default function Header({ title, onSearch }: HeaderProps) {
-  const { currentAddress, retryLocation } = useLocation();
+  const { currentAddress } = useLocation();
   const [searchQuery, setSearchQuery] = useState('');
 
   // Debounced search handler
@@ -32,15 +32,12 @@ export default function Header({ title, onSearch }: HeaderProps) {
     <LinearGradient colors={['#14b8a6', '#0d9488']} className="p-6 pb-4 shadow-lg">
       <View className="flex-row justify-between items-center mb-2">
         <Text className="text-3xl font-extrabold text-white">{title}</Text>
-        {/* Cart removed */}
+        {/* Removed "Change" button */}
       </View>
       <View className="flex-row items-center justify-between mb-2">
         <Text className="text-sm text-white flex-1" numberOfLines={1}>
-          Deliver to: {currentAddress}
+          Deliver to: {currentAddress || 'Set delivery address'}
         </Text>
-        <TouchableOpacity onPress={retryLocation}>
-          <Text className="text-sm text-white underline ml-2">Retry</Text>
-        </TouchableOpacity>
       </View>
       <View className="flex-row items-center bg-white rounded-xl p-2 shadow-sm">
         <Ionicons name="search-outline" size={20} color="#6b7280" />

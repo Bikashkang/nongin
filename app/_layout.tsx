@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
 import { AuthProvider } from '../context/AuthContext';
 import { CartProvider } from '../context/CartContext';
-import { LocationProvider } from '../context/LocationContext'; // Add this
+import { LocationProvider } from '../context/LocationContext';
 import '../global.css';
 
 export default function RootLayout() {
@@ -14,6 +14,7 @@ export default function RootLayout() {
             <Stack.Screen name="login" />
             <Stack.Screen name="cart" />
             <Stack.Screen name="category/[id]" />
+            <Stack.Screen name="change-address" />
           </Stack>
         </LocationProvider>
       </CartProvider>

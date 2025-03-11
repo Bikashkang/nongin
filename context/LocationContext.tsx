@@ -1,93 +1,81 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { Platform, Alert } from 'react-native';
 import * as Location from 'expo-location';
 
+interface DeliveryAddress {
+  name: string;
+  houseNumber: string;
+  street: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  latitude?: number;
+  longitude?: number;
+}
+
 interface LocationContextType {
-  currentAddress: string;
+  currentAddress: string | null;
+  deliveryAddress: DeliveryAddress;
+  setDeliveryAddress: (address: DeliveryAddress) => void;
   retryLocation: () => void;
 }
 
 const LocationContext = createContext<LocationContextType | undefined>(undefined);
 
 export function LocationProvider({ children }: { children: React.ReactNode }) {
-  const [currentAddress, setCurrentAddress] = useState<string>('Fetching location...');
+  const [currentAddress, setCurrentAddress] = useState<string | null>(null);
+  const [deliveryAddress, setDeliveryAddress] = useState<DeliveryAddress>({
+    name: '',
+    houseNumber: '',
+    street: '',
+    city: '',
+    state: '',
+    postalCode: '',
+    latitude: undefined,
+    longitude: undefined,
+  });
 
-  const getLocation = async () => {
-    setCurrentAddress('Fetching location...');
+  const fetchLocation = async () => {
     try {
-      if (Platform.OS === 'web') {
-        if (!navigator.geolocation) {
-          console.log('Geolocation not supported, falling back to IP');
-        } else {
-          const permission = await new Promise<string>((resolve) => {
-            navigator.permissions.query({ name: 'geolocation' }).then((result) => resolve(result.state));
-          });
-
-          if (permission !== 'denied') {
-            try {
-              await new Promise<void>((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(
-                  async (position) => {
-                    const { latitude, longitude } = position.coords;
-                    const [address] = await Location.reverseGeocodeAsync({ latitude, longitude });
-                    if (address) {
-                      const formattedAddress = `${address.street || ''} ${address.city || ''}, ${address.region || ''} ${address.postalCode || ''}`.trim();
-                      setCurrentAddress(formattedAddress || 'Unknown location');
-                    } else {
-                      setCurrentAddress('Unable to fetch address');
-                    }
-                    resolve();
-                  },
-                  (error) => reject(error),
-                  { enableHighAccuracy: true, timeout: 5000, maximumAge: 1000 }
-                );
-              });
-              return;
-            } catch (error) {
-              console.error('Web geolocation failed:', error);
-            }
-          }
-        }
-
-        console.log('Falling back to IP-based location');
-        const response = await fetch('https://ipapi.co/json/');
-        const data = await response.json();
-        const formattedAddress = `${data.city || ''}, ${data.region || ''} ${data.country_name || ''}`.trim();
-        setCurrentAddress(formattedAddress || 'Unknown location');
-      } else {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          setCurrentAddress('Location permission denied');
-          Alert.alert('Permission Denied', 'Please enable location services.');
-          return;
-        }
-
-        const location = await Location.getCurrentPositionAsync({});
-        const { latitude, longitude } = location.coords;
-        const [address] = await Location.reverseGeocodeAsync({ latitude, longitude });
-        if (address) {
-          const formattedAddress = `${address.street || ''} ${address.city || ''}, ${address.region || ''} ${address.postalCode || ''}`.trim();
-          setCurrentAddress(formattedAddress || 'Unknown location');
-        } else {
-          setCurrentAddress('Unable to fetch address');
-        }
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setCurrentAddress('Permission denied');
+        return;
       }
+
+      const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const [address] = await Location.reverseGeocodeAsync({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
+
+      const formattedAddress = address
+        ? `${address.city || ''}, ${address.region || ''} ${address.postalCode || ''}`.trim()
+        : 'Unknown location';
+      setCurrentAddress(formattedAddress);
+      setDeliveryAddress((prev) => ({
+        ...prev,
+        city: address.city || prev.city,
+        state: address.region || prev.state,
+        postalCode: address.postalCode || prev.postalCode,
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      }));
     } catch (error) {
-      console.error('Error fetching location:', error);
+      console.error('Location fetch error:', error);
       setCurrentAddress('Error fetching location');
     }
   };
 
   useEffect(() => {
-    getLocation();
-  }, []); // Runs once on mount
+    fetchLocation();
+  }, []);
 
   const retryLocation = () => {
-    getLocation();
+    fetchLocation();
   };
 
   return (
-    <LocationContext.Provider value={{ currentAddress, retryLocation }}>
+    <LocationContext.Provider value={{ currentAddress, deliveryAddress, setDeliveryAddress, retryLocation }}>
       {children}
     </LocationContext.Provider>
   );

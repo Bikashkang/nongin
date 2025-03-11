@@ -14,11 +14,7 @@ export default function LoginScreen() {
   useEffect(() => {
     if (!loading && user) {
       console.log('LoginScreen - User:', user.email, 'Role:', role);
-      if (role === 'store_manager') {
-        router.replace('/store-manager');
-      } else {
-        router.replace('/(tabs)');
-      }
+      router.replace('/(tabs)'); // Always redirect to tabs
     }
   }, [user, role, loading, router]);
 

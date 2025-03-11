@@ -27,16 +27,14 @@ export default function HomeScreen() {
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
 
-  // Map category names to Ionicons (customize as needed)
   const getCategoryIcon = (name: string): string => {
     const iconMap: { [key: string]: string } = {
       spices: 'leaf-outline',
       vegetables: 'nutrition-outline',
       fish: 'fish-outline',
       meat: 'heart-half-outline',
-      //beverages: 'beer-outline',
     };
-    return iconMap[name.toLowerCase()] || 'cube-outline'; // Default icon
+    return iconMap[name.toLowerCase()] || 'cube-outline';
   };
 
   useEffect(() => {
@@ -101,10 +99,12 @@ export default function HomeScreen() {
 
     const handleAdd = (e?: any) => {
       if (e) e.stopPropagation();
-      addToCart(item);
+      console.log('Adding to cart:', item);
+      addToCart(item); // Pass Product without quantity
     };
     const handleRemove = (e?: any) => {
       if (e) e.stopPropagation();
+      console.log('Removing from cart:', item.id);
       removeFromCart(item.id);
     };
 
@@ -148,7 +148,6 @@ export default function HomeScreen() {
     <View className="flex-1 bg-gray-50">
       <Header title="Nongin Store" onSearch={handleSearch} />
       <ScrollView className="flex-1">
-        {/* Categories Horizontal ScrollView */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -160,14 +159,12 @@ export default function HomeScreen() {
             </View>
           ))}
         </ScrollView>
-
-        {/* Promotional Banner */}
         <TouchableOpacity
           className="mx-4 my-2 bg-cyan-600 rounded-xl overflow-hidden"
-          onPress={() => console.log('Promo clicked')} // Add promo action here
+          onPress={() => console.log('Promo clicked')}
         >
           <Image
-            source={{ uri: 'https://via.placeholder.com/300x100?text=Promo+Banner' }} // Replace with actual promo image
+            source={{ uri: 'https://via.placeholder.com/300x100?text=Promo+Banner' }}
             className="w-full h-24"
             resizeMode="cover"
           />
@@ -175,11 +172,7 @@ export default function HomeScreen() {
             <Text className="text-white text-lg font-bold">ꯌꯥꯎꯁꯪ ꯑꯣꯐꯔ ꯊꯝꯖꯔꯤ! Nakuppi FREE!</Text>
           </View>
         </TouchableOpacity>
-
-        {/* Featured Products Title */}
         <Text className="text-2xl font-bold text-gray-800 mx-4 my-2">Featured Products</Text>
-
-        {/* Products List */}
         {filteredProducts.length === 0 ? (
           <View className="flex-1 justify-center items-center">
             <Text className="text-lg text-gray-600 font-medium">No products available.</Text>
@@ -190,13 +183,11 @@ export default function HomeScreen() {
             keyExtractor={(item) => item.id}
             renderItem={renderProductItem}
             numColumns={2}
-            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 80 }} // Extra padding for floating button
-            scrollEnabled={false} // Disable FlatList scrolling since it's inside ScrollView
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 80 }}
+            scrollEnabled={false}
           />
         )}
       </ScrollView>
-
-      {/* Floating Cart Button */}
       {cart.length > 0 && (
         <Link href="/cart" asChild>
           <TouchableOpacity style={styles.floatingButton}>

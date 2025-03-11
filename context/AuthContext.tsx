@@ -6,15 +6,15 @@ import {
   onAuthStateChanged,
   User,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore'; // Added Firestore imports
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 
 interface AuthContextValue {
   user: User | null;
-  role: string | null; // Added role
+  role: string | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, role?: string) => Promise<void>; // Updated signUp
+  signUp: (email: string, password: string, role?: string) => Promise<void>;
   signOutUser: () => Promise<void>;
 }
 
@@ -30,8 +30,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (user) {
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         const userData = userDoc.exists() ? userDoc.data() : {};
-        setRole(userData.role || 'customer'); // Default to 'customer'
+        const userRole = userData.role || 'customer';
+        console.log('User:', user.email, 'UID:', user.uid, 'Role:', userRole);
         setUser(user);
+        setRole(userRole);
       } else {
         setUser(null);
         setRole(null);
@@ -45,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
-      console.error('Error signing in:', error);
+      console.error('Sign-in error:', error);
       throw error;
     }
   };
@@ -54,9 +56,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-      await setDoc(doc(db, 'users', user.uid), { email, role }); // Store role in Firestore
+      await setDoc(doc(db, 'users', user.uid), { email, role });
     } catch (error) {
-      console.error('Error signing up:', error);
+      console.error('Sign-up error:', error);
       throw error;
     }
   };
@@ -67,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setRole(null);
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error('Sign-out error:', error);
       throw error;
     }
   };

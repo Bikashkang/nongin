@@ -6,13 +6,15 @@ import {
   onAuthStateChanged,
   User,
 } from 'firebase/auth';
-import { auth } from '../firebase';
+import { doc, setDoc, getDoc } from 'firebase/firestore'; // Added Firestore imports
+import { auth, db } from '../firebase';
 
 interface AuthContextValue {
   user: User | null;
+  role: string | null; // Added role
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, role?: string) => Promise<void>; // Updated signUp
   signOutUser: () => Promise<void>;
 }
 
@@ -20,11 +22,20 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [role, setRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        const userData = userDoc.exists() ? userDoc.data() : {};
+        setRole(userData.role || 'customer'); // Default to 'customer'
+        setUser(user);
+      } else {
+        setUser(null);
+        setRole(null);
+      }
       setLoading(false);
     });
     return unsubscribe;
@@ -39,9 +50,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signUp = async (email: string, password: string) => {
+  const signUp = async (email: string, password: string, role: string = 'customer') => {
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      await setDoc(doc(db, 'users', user.uid), { email, role }); // Store role in Firestore
     } catch (error) {
       console.error('Error signing up:', error);
       throw error;
@@ -52,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await signOut(auth);
       setUser(null);
+      setRole(null);
     } catch (error) {
       console.error('Error signing out:', error);
       throw error;
@@ -60,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value: AuthContextValue = {
     user,
+    role,
     loading,
     signIn,
     signUp,

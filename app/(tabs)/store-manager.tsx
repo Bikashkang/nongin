@@ -1,7 +1,7 @@
-import { View, Text, FlatList, Platform } from 'react-native';
+import { View, Text, FlatList, Platform, TouchableOpacity, Alert, RefreshControl } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
-import { useState, useEffect } from 'react';
-import { collection, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { collection, onSnapshot, doc, updateDoc, orderBy, query, Timestamp, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect } from 'expo-router';
@@ -17,26 +17,168 @@ interface Order {
   status: string;
   createdAt: any;
   userId: string;
+  timestamp: string;
 }
+
+// Setup notifications for local use
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false, // Changed to false for better Expo Go compatibility
+  }),
+});
 
 export default function StoreManagerScreen() {
   const { user, role, loading } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const previousOrdersCountRef = useRef(0);
+  const notificationsSetupComplete = useRef(false);
 
+  // Setup local notifications for Expo Go compatibility
   useEffect(() => {
-    console.log('StoreManagerScreen - User:', user?.email, 'Role:', role, 'Loading:', loading);
-    if (role !== 'store_manager') return;
+    if (!notificationsSetupComplete.current) {
+      const setupNotifications = async () => {
+        try {
+          // Request permissions for notifications
+          const { status } = await Notifications.requestPermissionsAsync();
+          if (status !== 'granted') {
+            console.log('Notification permissions not granted');
+            return;
+          }
+          
+          // Set up notification channel for Android
+          if (Platform.OS === 'android') {
+            await Notifications.setNotificationChannelAsync('default', {
+              name: 'Default',
+              importance: Notifications.AndroidImportance.MAX,
+              vibrationPattern: [0, 250, 250, 250],
+              lightColor: '#FF231F7C',
+            });
+          }
+          
+          console.log('Notifications setup complete');
+          notificationsSetupComplete.current = true;
+        } catch (error) {
+          console.error('Error setting up notifications:', error);
+        }
+      };
+      
+      setupNotifications();
+    }
+  }, []);
 
-    const unsubscribe = onSnapshot(collection(db, 'orders'), (snapshot) => {
+  // Handle refresh action
+  const onRefresh = useCallback(async () => {
+    if (role !== 'store_manager') return;
+    
+    setRefreshing(true);
+    try {
+      const ordersQuery = query(
+        collection(db, 'orders'),
+        orderBy('timestamp', 'desc'),
+        orderBy('status', 'asc')
+      );
+      
+      const snapshot = await getDocs(ordersQuery);
       const ordersList = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       })) as Order[];
-      setOrders(ordersList.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
-    });
+      
+      setOrders(ordersList);
+    } catch (error) {
+      console.error('Error refreshing orders:', error);
+      Alert.alert('Error', 'Failed to refresh orders. Please try again.');
+    } finally {
+      setRefreshing(false);
+    }
+  }, [role]);
+
+  // Listen for orders
+  useEffect(() => {
+    console.log('StoreManagerScreen - User:', user?.email, 'Role:', role, 'Loading:', loading);
+    if (role !== 'store_manager') return;
+
+    // Create a query that orders by timestamp and status
+    const ordersQuery = query(
+      collection(db, 'orders'), 
+      orderBy('timestamp', 'desc'),
+      orderBy('status', 'asc')
+    );
+
+    const unsubscribe = onSnapshot(ordersQuery, 
+      (snapshot) => {
+        // Process the snapshot and update orders
+        const ordersList = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Order[];
+
+        // Check for new orders to notify (using ref to avoid dependency loop)
+        const currentOrdersCount = ordersList.length;
+        if (previousOrdersCountRef.current > 0 && currentOrdersCount > previousOrdersCountRef.current) {
+          const newOrdersCount = currentOrdersCount - previousOrdersCountRef.current;
+          // Send local notification for new orders
+          sendLocalNotification(
+            `New Order${newOrdersCount > 1 ? 's' : ''}!`, 
+            `You have ${newOrdersCount} new order${newOrdersCount > 1 ? 's' : ''} to process.`
+          );
+        }
+        
+        // Update the ref with current count
+        previousOrdersCountRef.current = currentOrdersCount;
+        setOrders(ordersList);
+      }, 
+      (error) => {
+        console.error('Error getting orders:', error);
+        // If the error is about missing index, show a more specific message
+        if (error.code === 'failed-precondition') {
+          Alert.alert(
+            'Database Error',
+            'Please contact support. The database needs to be updated to support order sorting.',
+            [{ text: 'OK' }]
+          );
+        } else {
+          Alert.alert('Error', 'Failed to load orders. Please try again later.');
+        }
+      }
+    );
 
     return () => unsubscribe();
   }, [role]);
+
+  // Function to update order status
+  const updateOrderStatus = async (orderId: string, newStatus: string) => {
+    try {
+      await updateDoc(doc(db, 'orders', orderId), {
+        status: newStatus,
+        updatedAt: Timestamp.now(),
+      });
+      Alert.alert('Success', `Order status updated to ${newStatus}`);
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      Alert.alert('Error', 'Failed to update order status');
+    }
+  };
+
+  // Send local notification function (Expo Go compatible)
+  const sendLocalNotification = async (title: string, body: string) => {
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body,
+          sound: true,
+        },
+        trigger: null, // Immediate notification
+      });
+      console.log('Local notification sent:', title);
+    } catch (error) {
+      console.error('Error sending notification:', error);
+    }
+  };
 
   if (loading) {
     return (
@@ -64,7 +206,19 @@ export default function StoreManagerScreen() {
       <Text className="text-base text-gray-500">Total: ₹{item.total.toFixed(2)}</Text>
       <Text className="text-base text-gray-500">Address: {item.address}</Text>
       <Text className="text-base text-gray-500">Contact: {item.contactNumber}</Text>
-      <Text className="text-base text-gray-500">Status: {item.status}</Text>
+      
+      <View className="flex-row mt-2 mb-2">
+        <Text className="text-base text-gray-700 font-semibold">Status: </Text>
+        <Text className={`text-base font-medium ${
+          item.status === 'pending' ? 'text-yellow-600' : 
+          item.status === 'processing' ? 'text-blue-600' : 
+          item.status === 'completed' ? 'text-green-600' : 
+          item.status === 'cancelled' ? 'text-red-600' : 'text-gray-600'
+        }`}>
+          {item.status || 'pending'}
+        </Text>
+      </View>
+      
       <FlatList
         data={item.items}
         keyExtractor={(i) => i.id}
@@ -74,6 +228,29 @@ export default function StoreManagerScreen() {
           </Text>
         )}
       />
+      
+      <View className="flex-row justify-between mt-3">
+        <TouchableOpacity 
+          className="bg-blue-500 px-3 py-2 rounded-lg"
+          onPress={() => updateOrderStatus(item.id, 'processing')}
+        >
+          <Text className="text-white">Process</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          className="bg-green-500 px-3 py-2 rounded-lg"
+          onPress={() => updateOrderStatus(item.id, 'completed')}
+        >
+          <Text className="text-white">Complete</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          className="bg-red-500 px-3 py-2 rounded-lg"
+          onPress={() => updateOrderStatus(item.id, 'cancelled')}
+        >
+          <Text className="text-white">Cancel</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
@@ -93,6 +270,13 @@ export default function StoreManagerScreen() {
           keyExtractor={(item) => item.id}
           renderItem={renderOrder}
           contentContainerStyle={{ padding: 16 }}
+          refreshControl={
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={onRefresh}
+              colors={['#0d9488']} // teal-600 color
+            />
+          }
         />
       )}
     </View>

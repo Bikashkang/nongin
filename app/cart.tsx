@@ -1,4 +1,4 @@
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, Alert, ScrollView } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, Alert, ScrollView, ActivityIndicator } from 'react-native';
 import { useCart } from '../context/CartContext';
 import { useLocation } from '../context/LocationContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -37,6 +37,7 @@ export default function CartScreen({ navigation }: StackScreenProps<RootStackPar
   const { currentAddress, deliveryAddress, setDeliveryAddress } = useLocation();
   const [contactNumber, setContactNumber] = useState('');
   const [isEditingAddress, setIsEditingAddress] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -88,23 +89,32 @@ export default function CartScreen({ navigation }: StackScreenProps<RootStackPar
 
     const fullAddress = `${name}, ${houseNumber}, ${street}, ${city}, ${state} - ${postalCode}`;
     try {
+      // Show loading indicator
+      setIsLoading(true);
       const orderId = await placeOrder(fullAddress, contactNumber);
+      setIsLoading(false);
+      
       if (orderId) {
-        Alert.alert('Success', `Order placed! ID: ${orderId}`, [
-          {
-            text: 'OK',
-            onPress: () => {
-              console.log('Redirecting to /(tabs)');
-              router.replace('/(tabs)'); // Changed from /(tabs)/index to /(tabs)
+        Alert.alert(
+          'Order Placed Successfully', 
+          `Your order #${orderId} has been placed! A store manager will process it shortly.`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                console.log('Redirecting to /(tabs)');
+                router.replace('/(tabs)');
+              },
             },
-          },
-        ]);
+          ]
+        );
         setContactNumber('');
         setIsEditingAddress(false);
       }
     } catch (error) {
+      setIsLoading(false);
       console.error('Error placing order:', error);
-      Alert.alert('Error', 'Failed to place order.');
+      Alert.alert('Error', 'Failed to place order. Please try again.');
     }
   };
 
@@ -157,6 +167,15 @@ export default function CartScreen({ navigation }: StackScreenProps<RootStackPar
 
   return (
     <View className="flex-1 bg-gray-50">
+      {isLoading && (
+        <View className="absolute z-10 inset-0 bg-black/30 justify-center items-center">
+          <View className="bg-white p-5 rounded-xl shadow-lg items-center">
+            <Text className="text-lg font-semibold text-gray-800 mb-3">Processing Order...</Text>
+            <ActivityIndicator size="large" color="#0f766e" />
+          </View>
+        </View>
+      )}
+      
       {cart.length === 0 ? (
         <View className="flex-1 justify-center items-center">
           <Ionicons name="cart-outline" size={64} color="#6b7280" />

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { collection, doc, setDoc, onSnapshot, addDoc, DocumentSnapshot } from 'firebase/firestore';
+import { collection, doc, setDoc, onSnapshot, addDoc, DocumentSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from './AuthContext';
 
@@ -91,18 +91,29 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const placeOrder = async (deliveryAddress: string, contactNumber: string) => {
     if (!user || cart.length === 0) return;
     const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const now = new Date().toISOString();
     const orderData = {
       userId: user.uid,
       items: cart,
       total,
-      deliveryAddress,
+      address: deliveryAddress,     // Consistent field name
       contactNumber,
-      timestamp: new Date().toISOString(),
+      timestamp: now,               // String timestamp for query ordering
+      status: 'pending',            // Initial status
+      updatedAt: now,               // Last update time
     };
-    const orderRef = await addDoc(collection(db, 'orders'), orderData);
-    await clearCart();
-    console.log(`Order placed: ₹${total.toFixed(2)} to ${deliveryAddress}`);
-    return orderRef.id;
+    
+    try {
+      console.log("Placing order:", orderData);
+      const orderRef = await addDoc(collection(db, 'orders'), orderData);
+      console.log(`Order placed with ID: ${orderRef.id}`);
+      await clearCart();
+      console.log(`Order placed: ₹${total.toFixed(2)} to ${deliveryAddress}`);
+      return orderRef.id;
+    } catch (error) {
+      console.error('Error placing order:', error);
+      throw error;
+    }
   };
 
   const saveCartToFirestore = async (updatedCart: CartItem[]) => {

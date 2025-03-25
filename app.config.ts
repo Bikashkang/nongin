@@ -6,6 +6,7 @@ const config: ExpoConfig = {
   version: '1.0.0',
   orientation: 'portrait',
   icon: './assets/icon.png',
+  userInterfaceStyle: 'automatic',
   splash: {
     image: './assets/splash.png',
     resizeMode: 'contain',
@@ -24,7 +25,7 @@ const config: ExpoConfig = {
     },
   },
   android: {
-    package: 'com.brendon_kang.nongin',
+    package: 'com.nongin.app',
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: '#ffffff',
@@ -40,7 +41,16 @@ const config: ExpoConfig = {
   web: {
     favicon: './assets/favicon.png',
   },
-  scheme: 'groceryapp', // Add this
+  scheme: 'groceryapp',
+  extra: {
+    eas: {
+      projectId: "4d83a602-cb90-42dc-8426-8083e732d7a7"
+    }
+  },
+  plugins: [
+    "expo-router",
+    "expo-notifications" 
+  ]
 };
 
 export default config;

@@ -4,13 +4,53 @@ import { CartProvider } from '../../context/CartContext';
 import { LocationProvider } from '../../context/LocationContext';
 import { Ionicons } from '@expo/vector-icons';
 import { View, Text, TouchableOpacity } from 'react-native';
+import OfflineNotice from '../../components/OfflineNotice';
+import React, { ErrorInfo, useCallback, useState } from 'react';
 
-function CustomTabBar({ state, descriptors, navigation }) {
+// Simple error boundary to prevent the app from crashing if OfflineNotice fails
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode; fallback?: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode; fallback?: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(_: Error) {
+    // Update state so the next render will show the fallback UI.
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('Error in component:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      // You can render any custom fallback UI
+      return this.props.fallback || null;
+    }
+
+    return this.props.children;
+  }
+}
+
+// Safe wrapper for OfflineNotice
+const SafeOfflineNotice = () => {
+  return (
+    <ErrorBoundary>
+      <OfflineNotice />
+    </ErrorBoundary>
+  );
+};
+
+function CustomTabBar({ state, descriptors, navigation }: any) {
   const { role } = useAuth();
 
   return (
     <View className="flex-row bg-white border-t border-gray-200 p-2">
-      {state.routes.map((route, index) => {
+      {state.routes.map((route: any, index: number) => {
         // Skip store-manager tab for non-managers
         if (route.name === 'store-manager' && role !== 'store_manager') {
           return null;
@@ -68,55 +108,58 @@ function TabLayout() {
   }
 
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-      }}
-      tabBar={(props) => <CustomTabBar {...props} />}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
+    <>
+      <SafeOfflineNotice />
+      <Tabs
+        screenOptions={{
+          headerShown: false,
         }}
-      />
-      <Tabs.Screen
-        name="cart"
-        options={{
-          title: 'Cart',
-          tabBarIcon: ({ color, size }) => <Ionicons name="cart-outline" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="categories"
-        options={{
-          title: 'Categories',
-          tabBarIcon: ({ color, size }) => <Ionicons name="list-outline" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="orders"
-        options={{
-          title: 'Orders',
-          tabBarIcon: ({ color, size }) => <Ionicons name="receipt-outline" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="store-manager"
-        options={{
-          title: 'Store',
-          tabBarIcon: ({ color, size }) => <Ionicons name="storefront-outline" size={size} color={color} />,
-        }}
-      />
-    </Tabs>
+        tabBar={(props) => <CustomTabBar {...props} />}
+      >
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: 'Home',
+            tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="cart"
+          options={{
+            title: 'Cart',
+            tabBarIcon: ({ color, size }) => <Ionicons name="cart-outline" size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="categories"
+          options={{
+            title: 'Categories',
+            tabBarIcon: ({ color, size }) => <Ionicons name="list-outline" size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="orders"
+          options={{
+            title: 'Orders',
+            tabBarIcon: ({ color, size }) => <Ionicons name="receipt-outline" size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="profile"
+          options={{
+            title: 'Profile',
+            tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="store-manager"
+          options={{
+            title: 'Store',
+            tabBarIcon: ({ color, size }) => <Ionicons name="storefront-outline" size={size} color={color} />,
+          }}
+        />
+      </Tabs>
+    </>
   );
 }
 

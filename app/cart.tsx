@@ -1,4 +1,5 @@
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, Alert, ScrollView } from 'react-native';
+import React from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, Alert, ScrollView, ActivityIndicator } from 'react-native';
 import { useCart } from '../context/CartContext';
 import { useLocation } from '../context/LocationContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -37,6 +38,7 @@ export default function CartScreen({ navigation }: StackScreenProps<RootStackPar
   const { currentAddress, deliveryAddress, setDeliveryAddress } = useLocation();
   const [contactNumber, setContactNumber] = useState('');
   const [isEditingAddress, setIsEditingAddress] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -88,23 +90,27 @@ export default function CartScreen({ navigation }: StackScreenProps<RootStackPar
 
     const fullAddress = `${name}, ${houseNumber}, ${street}, ${city}, ${state} - ${postalCode}`;
     try {
+      // Show loading indicator
+      setIsLoading(true);
       const orderId = await placeOrder(fullAddress, contactNumber);
+      
       if (orderId) {
-        Alert.alert('Success', `Order placed! ID: ${orderId}`, [
-          {
-            text: 'OK',
-            onPress: () => {
-              console.log('Redirecting to /(tabs)');
-              router.replace('/(tabs)'); // Changed from /(tabs)/index to /(tabs)
-            },
-          },
-        ]);
+        // Set order success state instead of using Alert
+        setOrderSuccess({
+          isSuccess: true,
+          orderId: orderId,
+          total: total,
+        });
         setContactNumber('');
         setIsEditingAddress(false);
       }
+      
+      // Only hide loading after setting success state to ensure smooth transition
+      setIsLoading(false);
     } catch (error) {
+      setIsLoading(false);
       console.error('Error placing order:', error);
-      Alert.alert('Error', 'Failed to place order.');
+      Alert.alert('Error', 'Failed to place order. Please try again.');
     }
   };
 
@@ -150,14 +156,81 @@ export default function CartScreen({ navigation }: StackScreenProps<RootStackPar
   };
 
   const updateAddressField = (field: keyof DeliveryAddress, value: string) => {
-    setDeliveryAddress((prev) => ({ ...prev, [field]: value }));
+    setDeliveryAddress((prev) => {
+      return { ...prev, [field]: value };
+    });
   };
 
   const fullAddress = `${deliveryAddress.name}, ${deliveryAddress.houseNumber}, ${deliveryAddress.street}, ${deliveryAddress.city}, ${deliveryAddress.state} - ${deliveryAddress.postalCode}`.trim();
 
+  // Add state for order success
+  const [orderSuccess, setOrderSuccess] = useState<{
+    isSuccess: boolean;
+    orderId?: string;
+    total?: number;
+  }>({
+    isSuccess: false
+  });
+
+  // Handle continue shopping
+  const handleContinueShopping = () => {
+    setOrderSuccess({ isSuccess: false });
+    router.replace('/(tabs)');
+  };
+
+  // Handle view orders
+  const handleViewOrders = () => {
+    setOrderSuccess({ isSuccess: false });
+    router.replace('/(tabs)/orders');
+  };
+
   return (
     <View className="flex-1 bg-gray-50">
-      {cart.length === 0 ? (
+      {!isLoading && orderSuccess.isSuccess ? (
+        <View className="flex-1 justify-center items-center bg-white p-6">
+          <View className="bg-green-50 rounded-full p-6 mb-4">
+            <Ionicons name="checkmark-circle" size={80} color="#10b981" />
+          </View>
+          <Text className="text-2xl font-bold text-gray-800 mb-2 text-center">Order Placed Successfully!</Text>
+          <Text className="text-base text-gray-600 mb-6 text-center">
+            Your order #{orderSuccess.orderId?.slice(-6)} has been placed and will be processed shortly.
+          </Text>
+          
+          <View className="bg-gray-50 w-full rounded-xl p-4 mb-6">
+            <Text className="text-base font-semibold text-gray-700 mb-2">Order Summary:</Text>
+            <View className="flex-row justify-between">
+              <Text className="text-gray-600">Order ID:</Text>
+              <Text className="font-medium">#{orderSuccess.orderId?.slice(-6)}</Text>
+            </View>
+            <View className="flex-row justify-between mt-1">
+              <Text className="text-gray-600">Total Amount:</Text>
+              <Text className="font-medium">₹{orderSuccess.total?.toFixed(2)}</Text>
+            </View>
+            <View className="flex-row justify-between mt-1">
+              <Text className="text-gray-600">Delivery Address:</Text>
+              <Text className="font-medium text-right flex-1 ml-4">{fullAddress.length > 30 ? fullAddress.substring(0, 30) + '...' : fullAddress}</Text>
+            </View>
+            <View className="flex-row justify-between mt-1">
+              <Text className="text-gray-600">Status:</Text>
+              <Text className="font-medium text-amber-600">Pending</Text>
+            </View>
+          </View>
+          
+          <TouchableOpacity 
+            className="bg-teal-600 p-4 rounded-full w-full mb-3"
+            onPress={handleViewOrders}
+          >
+            <Text className="text-white font-semibold text-center text-lg">View My Orders</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            className="bg-gray-200 p-4 rounded-full w-full"
+            onPress={handleContinueShopping}
+          >
+            <Text className="text-gray-800 font-semibold text-center text-lg">Continue Shopping</Text>
+          </TouchableOpacity>
+        </View>
+      ) : !isLoading && cart.length === 0 ? (
         <View className="flex-1 justify-center items-center">
           <Ionicons name="cart-outline" size={64} color="#6b7280" />
           <Text className="text-xl text-gray-600 font-medium mt-4">Your cart is empty</Text>
@@ -168,7 +241,7 @@ export default function CartScreen({ navigation }: StackScreenProps<RootStackPar
             <Text className="text-white font-semibold text-lg">Shop Now</Text>
           </TouchableOpacity>
         </View>
-      ) : (
+      ) : !isLoading ? (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
           <Text className="text-2xl font-bold text-gray-800 mb-4">Your Cart</Text>
           <FlatList
@@ -265,6 +338,19 @@ export default function CartScreen({ navigation }: StackScreenProps<RootStackPar
             </TouchableOpacity>
           </View>
         </ScrollView>
+      ) : null}
+      
+      {/* Loading overlay */}
+      {isLoading && (
+        <View className="flex-1 justify-center items-center">
+          <View className="bg-white rounded-3xl shadow-lg py-8 px-12 w-4/5 max-w-sm items-center">
+            <View className="bg-teal-50 rounded-full p-6 mb-6">
+              <ActivityIndicator size="large" color="#0f766e" />
+            </View>
+            <Text className="text-2xl font-semibold text-gray-800 mb-2 text-center">Processing Order</Text>
+            <Text className="text-base text-gray-600 text-center">Please wait a moment</Text>
+          </View>
+        </View>
       )}
     </View>
   );

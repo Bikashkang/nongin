@@ -1,8 +1,8 @@
 import { ExpoConfig } from '@expo/config-types';
 
 const config: ExpoConfig = {
-  name: 'nongin',
-  slug: 'nongin',
+  name: 'Nongin',
+  slug: 'Nongin',
   version: '1.0.0',
   orientation: 'portrait',
   icon: './assets/icon.png',

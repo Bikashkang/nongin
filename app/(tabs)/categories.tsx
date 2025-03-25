@@ -17,6 +17,16 @@ export default function CategoriesScreen() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [filteredCategories, setFilteredCategories] = useState<Category[]>([]);
 
+  const getCategoryIcon = (name: string): any => {
+    const iconMap: { [key: string]: any } = {
+      spices: 'leaf-outline',
+      vegetables: 'nutrition-outline',
+      fish: 'fish-outline',
+      meat: 'heart-half-outline',
+    };
+    return iconMap[name.toLowerCase()] || 'cube-outline';
+  };
+
   useEffect(() => {
     if (!user) return;
 
@@ -52,10 +62,36 @@ export default function CategoriesScreen() {
     <Link href={`/category/${item.id}`} asChild>
       <TouchableOpacity
         className="flex-1 m-2 p-6 bg-white rounded-xl shadow-md border border-gray-100 items-center justify-center"
-        activeOpacity={0.8}
+        activeOpacity={0.7}
       >
-        <Ionicons name="cube-outline" size={32} color="#2563eb" />
-        <Text className="text-lg font-bold text-gray-800 mt-2">{item.name}</Text>
+        <View className="w-20 h-20 rounded-full shadow-md justify-center items-center overflow-hidden mb-3" 
+          style={{ 
+            elevation: 4, 
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.2,
+            shadowRadius: 3,
+          }}>
+          <View className="w-full h-full absolute" 
+            style={{ 
+              backgroundColor: item.name.toLowerCase() === 'spices' ? '#f97316' : 
+                            item.name.toLowerCase() === 'vegetables' ? '#22c55e' : 
+                            item.name.toLowerCase() === 'fish' ? '#0ea5e9' : 
+                            item.name.toLowerCase() === 'meat' ? '#ef4444' : '#14b8a6' 
+            }} />
+          <View className="w-full h-full absolute" 
+            style={{
+              backgroundColor: 'rgba(255, 255, 255, 0.3)',
+              borderRadius: 50,
+            }} />
+          <Ionicons 
+            name={getCategoryIcon(item.name)} 
+            size={36} 
+            color="white" 
+            style={{ textShadowColor: 'rgba(0, 0, 0, 0.2)', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 2 }}
+          />
+        </View>
+        <Text className="text-lg font-bold text-gray-800">{item.name}</Text>
       </TouchableOpacity>
     </Link>
   );
